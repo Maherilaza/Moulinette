@@ -30,8 +30,6 @@ pub struct App {
     pub checking: bool,
     pub tick: usize,
     pub popup: Option<Popup>,
-    pub retries: Vec<u32>,
-    pub cooldown_until: Vec<Option<Instant>>,
 }
 
 impl App {
@@ -41,29 +39,6 @@ impl App {
 
     fn prev(&mut self) {
         self.selected = (self.selected + EXERCISES.len() - 1) % EXERCISES.len();
-    }
-
-    pub fn cooldown_remaining(&self) -> Option<Duration> {
-        let until = self.cooldown_until.get(self.selected).copied().flatten()?;
-        let now = Instant::now();
-        (until > now).then(|| until - now)
-    }
-
-    pub fn cooldown_active(&self) -> bool {
-        self.cooldown_remaining().is_some()
-    }
-}
-
-fn cooldown_secs(attempts: u32) -> u64 {
-    5 * u64::from(attempts)
-}
-
-fn retry_after(points: u8, attempts: u32) -> (u32, u64) {
-    if points == grade::MAX_SCORE {
-        (0, 0)
-    } else {
-        let n = attempts + 1;
-        (n, cooldown_secs(n))
     }
 }
 
@@ -84,8 +59,6 @@ fn main() -> io::Result<()> {
         checking: false,
         tick: 0,
         popup: None,
-        retries: vec![0; EXERCISES.len()],
-        cooldown_until: vec![None; EXERCISES.len()],
     };
 
     let mut terminal = ratatui::init();
@@ -112,8 +85,7 @@ fn run_app(
         }
         terminal.draw(|f| ui::draw(f, app))?;
 
-        let busy = app.popup.is_some() || app.cooldown_active();
-        if busy && !event::poll(FRAME)? {
+        if app.popup.is_some() && !event::poll(FRAME)? {
             continue;
         }
 
@@ -124,18 +96,14 @@ fn run_app(
             continue;
         }
 
-        if app.popup.take().is_some() {
-            continue;
-        }
+        // Any key closes the result banner, then acts as usual.
+        app.popup = None;
 
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => return Ok(()),
             KeyCode::Down | KeyCode::Char('j') => app.next(),
             KeyCode::Up | KeyCode::Char('k') => app.prev(),
-            KeyCode::Char('g') => {
-                if app.checking || app.cooldown_active() {
-                    continue;
-                }
+            KeyCode::Char('g') | KeyCode::Char('G') => {
                 grade_with_suspense(terminal, app, rendu, build, score_path, ids)?;
             }
             _ => {}
@@ -166,7 +134,10 @@ fn grade_with_suspense(
         if event::poll(FRAME)?
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
-            && matches!(key.code, KeyCode::Char('q') | KeyCode::Esc)
+            && matches!(
+                key.code,
+                KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc
+            )
         {
             return Ok(());
         }
@@ -175,11 +146,6 @@ fn grade_with_suspense(
     app.checking = false;
     let current = result.points();
     app.scores[app.selected] = grade::best_of(app.scores[app.selected], current);
-
-    let (retries, secs) = retry_after(app.scores[app.selected], app.retries[app.selected]);
-    app.retries[app.selected] = retries;
-    app.cooldown_until[app.selected] =
-        (secs > 0).then(|| Instant::now() + Duration::from_secs(secs));
 
     app.popup = Some(Popup {
         ok: result.output_ok,
@@ -194,18 +160,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cooldown_scales_by_five() {
-        assert_eq!(cooldown_secs(0), 0);
-        assert_eq!(cooldown_secs(1), 5);
-        assert_eq!(cooldown_secs(2), 10);
-        assert_eq!(cooldown_secs(3), 15);
-    }
-
-    #[test]
-    fn retry_escalates_and_resets_on_success() {
-        assert_eq!(retry_after(1, 0), (1, 5));
-        assert_eq!(retry_after(0, 1), (2, 10));
-        assert_eq!(retry_after(1, 2), (3, 15));
-        assert_eq!(retry_after(grade::MAX_SCORE, 5), (0, 0));
+    fn selection_wraps_both_ways() {
+        let mut app = App {
+            selected: 0,
+            scores: vec![0; EXERCISES.len()],
+            result: None,
+            result_for: None,
+            checking: false,
+            tick: 0,
+            popup: None,
+        };
+        app.prev();
+        assert_eq!(app.selected, EXERCISES.len() - 1);
+        app.next();
+        assert_eq!(app.selected, 0);
     }
 }

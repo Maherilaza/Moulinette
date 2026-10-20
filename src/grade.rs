@@ -1,10 +1,12 @@
 use std::io;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use crate::exercises::Exercise;
 
 pub const MAX_SCORE: u8 = 2;
+const RUN_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub struct GradeResult {
     pub compile_ok: bool,
@@ -24,20 +26,10 @@ impl GradeResult {
 pub fn grade(ex: &Exercise, rendu: &Path, build: &Path) -> io::Result<GradeResult> {
     let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
     let student = rendu.join(format!("{}.c", ex.id));
-    let obj = build.join(format!("{}.o", ex.id));
-
-    let compile = Command::new(&cc)
-        .args(["-Wall", "-Wextra", "-Werror", "-c"])
-        .arg(&student)
-        .arg("-o")
-        .arg(&obj)
-        .output()?;
-    let compile_ok = compile.status.success();
-    let compiler_stderr = String::from_utf8_lossy(&compile.stderr).into_owned();
-
     let main_src = build.join(format!("main_{}.c", ex.id));
     std::fs::write(&main_src, ex.test_main)?;
     let bin = build.join(ex.id);
+
     let link = Command::new(&cc)
         .args(["-Wall", "-Wextra", "-Werror"])
         .arg(&student)
@@ -45,20 +37,28 @@ pub fn grade(ex: &Exercise, rendu: &Path, build: &Path) -> io::Result<GradeResul
         .arg("-o")
         .arg(&bin)
         .output()?;
+    let compile_ok = link.status.success();
+    let compiler_stderr = String::from_utf8_lossy(&link.stderr).into_owned();
 
     let mut output_ok = false;
     let mut got = String::new();
     let mut run_error = None;
-    if link.status.success() {
-        match Command::new(&bin).output() {
-            Ok(out) => {
-                got = String::from_utf8_lossy(&out.stdout).into_owned();
-                output_ok = outputs_match(ex.expected, &got);
+    if compile_ok {
+        match run_binary(&bin) {
+            Ok((status, stdout, timed_out)) => {
+                got = stdout;
+                if timed_out {
+                    run_error = Some(format!("timed out after {}s", RUN_TIMEOUT.as_secs()));
+                } else if !status.success() {
+                    run_error = Some(match status.code() {
+                        Some(code) => format!("program exited with status {code}"),
+                        None => "program was killed by a signal".to_string(),
+                    });
+                }
+                output_ok = !timed_out && status.success() && outputs_match(ex.expected, &got);
             }
             Err(e) => run_error = Some(e.to_string()),
         }
-    } else {
-        run_error = Some(String::from_utf8_lossy(&link.stderr).into_owned());
     }
 
     Ok(GradeResult {
@@ -69,6 +69,32 @@ pub fn grade(ex: &Exercise, rendu: &Path, build: &Path) -> io::Result<GradeResul
         got,
         run_error,
     })
+}
+
+// shortcut: stdout goes through a ~64KB pipe buffer, so a program that prints
+// more than that without exiting is reported as a timeout. Fine at this size.
+fn run_binary(bin: &Path) -> io::Result<(std::process::ExitStatus, String, bool)> {
+    let mut child = Command::new(bin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let start = Instant::now();
+    let timed_out = loop {
+        if child.try_wait()?.is_some() {
+            break false;
+        }
+        if start.elapsed() >= RUN_TIMEOUT {
+            child.kill()?;
+            break true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let out = child.wait_with_output()?;
+    Ok((
+        out.status,
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        timed_out,
+    ))
 }
 
 pub fn outputs_match(expected: &str, got: &str) -> bool {
@@ -110,7 +136,9 @@ pub fn load_scores(path: &Path, ids: &[&str]) -> Vec<u8> {
 }
 
 pub fn save_scores(path: &Path, ids: &[&str], scores: &[u8]) -> io::Result<()> {
-    std::fs::write(path, format_scores(ids, scores))
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, format_scores(ids, scores))?;
+    std::fs::rename(&tmp, path)
 }
 
 #[cfg(test)]
@@ -183,6 +211,75 @@ mod tests {
         assert!(!syntax.compile_ok);
         assert_eq!(syntax.points(), 0);
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn scratch(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("moulinette_{name}_{}", std::process::id()));
+        let rendu = dir.join("rendu");
+        let build = rendu.join(".build");
+        std::fs::create_dir_all(&build).unwrap();
+        (dir, rendu)
+    }
+
+    #[test]
+    fn crash_after_correct_output_is_not_a_pass() {
+        let (dir, rendu) = scratch("crash");
+        let build = rendu.join(".build");
+        let ex = putchar_exercise();
+        std::fs::write(
+            rendu.join(format!("{}.c", ex.id)),
+            "#include <unistd.h>\n#include <stdlib.h>\nstatic void\tboom(void)\n{\n\t_exit(3);\n}\nvoid\tft_putchar(char c)\n{\n\tstatic int\tonce;\n\n\tif (!once++)\n\t\tatexit(boom);\n\twrite(1, &c, 1);\n}\n",
+        )
+        .unwrap();
+        let r = grade(&ex, &rendu, &build).unwrap();
+        assert!(r.compile_ok, "stderr: {}", r.compiler_stderr);
+        assert_eq!(r.got, ex.expected);
+        assert!(!r.output_ok);
+        assert!(r.run_error.is_some());
+        assert_eq!(r.points(), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn endless_loop_times_out_instead_of_hanging() {
+        let (dir, rendu) = scratch("loop");
+        let build = rendu.join(".build");
+        let ex = putchar_exercise();
+        std::fs::write(
+            rendu.join(format!("{}.c", ex.id)),
+            "void\tft_putchar(char c)\n{\n\t(void)c;\n\twhile (1)\n\t\t;\n}\n",
+        )
+        .unwrap();
+        let started = Instant::now();
+        let r = grade(&ex, &rendu, &build).unwrap();
+        assert!(started.elapsed() < RUN_TIMEOUT + Duration::from_secs(5));
+        assert!(r.compile_ok, "stderr: {}", r.compiler_stderr);
+        assert!(!r.output_ok);
+        assert!(r.run_error.unwrap().contains("timed out"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn missing_submission_scores_zero() {
+        let (dir, rendu) = scratch("missing");
+        let build = rendu.join(".build");
+        let r = grade(&putchar_exercise(), &rendu, &build).unwrap();
+        assert!(!r.compile_ok);
+        assert!(!r.output_ok);
+        assert_eq!(r.points(), 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn save_leaves_no_temp_file_and_reloads() {
+        let dir = std::env::temp_dir().join(format!("moulinette_save_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(".moulinette_score");
+        let ids = ["a", "b"];
+        save_scores(&path, &ids, &[2, 1]).unwrap();
+        assert_eq!(load_scores(&path, &ids), vec![2, 1]);
+        assert!(!path.with_extension("tmp").exists());
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -29,6 +27,7 @@ pub fn draw(f: &mut Frame, app: &App) {
 }
 
 fn draw_list(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
+    let widest = widest_id();
     let items: Vec<ListItem> = EXERCISES
         .iter()
         .enumerate()
@@ -40,7 +39,7 @@ fn draw_list(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
                 _ => Color::Red,
             };
             ListItem::new(Line::from(vec![
-                Span::raw(format!(" {:<width$} ", ex.id, width = widest_id())),
+                Span::raw(format!(" {:<widest$} ", ex.id)),
                 Span::styled(format!("[{score}/2]"), Style::default().fg(color)),
             ]))
         })
@@ -81,15 +80,6 @@ fn draw_subject(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         Line::from(""),
     ];
 
-    if let Some(rem) = app.cooldown_remaining() {
-        lines.push(Line::from(Span::styled(
-            format!("  Next grade in {}s", seconds(rem)),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )));
-    }
-
     if app.checking {
         let frame = SPINNER[app.tick % SPINNER.len()];
         lines.push(Line::from(Span::styled(
@@ -110,7 +100,7 @@ fn draw_subject(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             push_indented(&mut lines, &r.compiler_stderr, Color::Red, 4);
         }
         lines.push(status_line(r.output_ok, "Output"));
-        if !r.output_ok {
+        if r.compile_ok && !r.output_ok {
             lines.push(Line::from(vec![
                 Span::raw("  expected: "),
                 Span::styled(escape(&r.expected), Style::default().fg(Color::Green)),
@@ -140,25 +130,18 @@ fn draw_status(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
         " up/down j/k select  G grade  Q quit "
     };
     let score = format!(" Score: {total}/{max} ");
-    let mut spans = vec![
+    let spans = vec![
         Span::styled(keys, Style::default().fg(Color::Black).bg(Color::White)),
         Span::raw(" "),
+        Span::styled(
+            score,
+            Style::default().fg(Color::Black).bg(if total == max {
+                Color::Green
+            } else {
+                Color::Yellow
+            }),
+        ),
     ];
-    if let Some(rem) = app.cooldown_remaining() {
-        spans.push(Span::styled(
-            format!(" Retry in {}s ", seconds(rem)),
-            Style::default().fg(Color::Black).bg(Color::Red),
-        ));
-        spans.push(Span::raw(" "));
-    }
-    spans.push(Span::styled(
-        score,
-        Style::default().fg(Color::Black).bg(if total == max {
-            Color::Green
-        } else {
-            Color::Yellow
-        }),
-    ));
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
@@ -169,10 +152,6 @@ fn widest_id() -> usize {
 // borders + "> " + id + " " + "[2/2]" + slack
 fn list_width() -> u16 {
     (widest_id() + 12) as u16
-}
-
-fn seconds(rem: Duration) -> u64 {
-    rem.as_secs() + u64::from(rem.subsec_nanos() > 0)
 }
 
 fn draw_popup(f: &mut Frame, app: &App) {

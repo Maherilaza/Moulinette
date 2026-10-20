@@ -125,8 +125,8 @@ pub const EXERCISES: [Exercise; 25] = [
                       '+' or '-', then read digits until the first non-digit. \
                       Return 0 when nothing can be converted.",
         prototype: "int ft_atoi(char *str);",
-        test_main: "#include <stdio.h>\n\nint\tft_atoi(char *str);\n\nint\tmain(void)\n{\n\tprintf(\"%d %d %d %d\\n\", ft_atoi(\"42\"), ft_atoi(\"   -42abc\"), ft_atoi(\"+007\"), ft_atoi(\"abc\"));\n\treturn (0);\n}\n",
-        expected: "42 -42 7 0\n",
+        test_main: "#include <stdio.h>\n\nint\tft_atoi(char *str);\n\nint\tmain(void)\n{\n\tprintf(\"%d %d %d %d %d %d %d\\n\", ft_atoi(\"42\"), ft_atoi(\"   -42abc\"), ft_atoi(\"+007\"), ft_atoi(\"abc\"), ft_atoi(\"\\t\\n 42\"), ft_atoi(\"--42\"), ft_atoi(\"\"));\n\treturn (0);\n}\n",
+        expected: "42 -42 7 0 42 0 0\n",
     },
     Exercise {
         id: "ft_isascii",
@@ -144,8 +144,8 @@ pub const EXERCISES: [Exercise; 25] = [
                       bytes must be filled with '\\0'. It never writes more than \
                       n bytes and returns dest.",
         prototype: "char *ft_strncpy(char *dest, char *src, unsigned int n);",
-        test_main: "#include <stdio.h>\n\nchar\t*ft_strncpy(char *dest, char *src, unsigned int n);\n\nint\tmain(void)\n{\n\tchar\tbuf[8];\n\tint\t\ti;\n\n\ti = 0;\n\twhile (i < 8)\n\t{\n\t\tbuf[i] = 'X';\n\t\ti++;\n\t}\n\tft_strncpy(buf, \"ab\", 4);\n\tprintf(\"%d %d %d %d %d\\n\", buf[0] == 'a', buf[1] == 'b', buf[2] == 0, buf[3] == 0, buf[4] == 'X');\n\treturn (0);\n}\n",
-        expected: "1 1 1 1 1\n",
+        test_main: "#include <stdio.h>\n\nchar\t*ft_strncpy(char *dest, char *src, unsigned int n);\n\nint\tmain(void)\n{\n\tchar\tbuf[8];\n\tchar\tbuf2[4];\n\tint\t\ti;\n\n\ti = 0;\n\twhile (i < 8)\n\t{\n\t\tbuf[i] = 'X';\n\t\ti++;\n\t}\n\ti = 0;\n\twhile (i < 4)\n\t{\n\t\tbuf2[i] = 'X';\n\t\ti++;\n\t}\n\tft_strncpy(buf, \"ab\", 4);\n\tft_strncpy(buf2, \"ab\", 0);\n\tprintf(\"%d %d %d %d %d %d\\n\", buf[0] == 'a', buf[1] == 'b', buf[2] == 0, buf[3] == 0, buf[4] == 'X', buf2[0] == 'X');\n\treturn (0);\n}\n",
+        expected: "1 1 1 1 1 1\n",
     },
     Exercise {
         id: "ft_tolower",
@@ -187,10 +187,11 @@ pub const EXERCISES: [Exercise; 25] = [
         id: "ft_strrchr",
         description: "Write a function that returns a pointer to the last \
                       occurrence of the character c in the string str, or NULL \
-                      if it does not appear.",
+                      if it does not appear. Searching for '\\0' must return a \
+                      pointer to the terminator.",
         prototype: "char *ft_strrchr(char *str, int c);",
-        test_main: "#include <stdio.h>\n#include <stddef.h>\n\nchar\t*ft_strrchr(char *str, int c);\n\nint\tmain(void)\n{\n\tchar\ts[] = \"moulinette\";\n\n\tprintf(\"%s %d\\n\", ft_strrchr(s, 't'), ft_strrchr(s, 'z') == NULL);\n\treturn (0);\n}\n",
-        expected: "te 1\n",
+        test_main: "#include <stdio.h>\n#include <stddef.h>\n\nchar\t*ft_strrchr(char *str, int c);\n\nint\tmain(void)\n{\n\tchar\ts[] = \"moulinette\";\n\n\tprintf(\"%s %d %d\\n\", ft_strrchr(s, 't'), ft_strrchr(s, 'z') == NULL, ft_strrchr(s, 0) == s + 10);\n\treturn (0);\n}\n",
+        expected: "te 1 1\n",
     },
     Exercise {
         id: "ft_isalnum",
