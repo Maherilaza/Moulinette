@@ -72,12 +72,7 @@ fn main() -> io::Result<()> {
     let build = rendu.join(".build");
     std::fs::create_dir_all(&build)?;
 
-    for ex in &EXERCISES {
-        let path = rendu.join(format!("{}.c", ex.id));
-        if !path.exists() {
-            std::fs::write(&path, ex.skeleton)?;
-        }
-    }
+    // rendu/ files are created by the student; missing/wrong names fail at compile time.
 
     let ids: Vec<&str> = EXERCISES.iter().map(|e| e.id).collect();
     let score_path = PathBuf::from(SCORE_FILE);

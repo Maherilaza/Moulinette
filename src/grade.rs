@@ -146,10 +146,8 @@ mod tests {
     fn putchar_exercise() -> Exercise {
         Exercise {
             id: "ft_putchar_test",
-            title: "",
             description: "",
             prototype: "void ft_putchar(char c);",
-            skeleton: "",
             test_main: "void\tft_putchar(char c);\n\nint\tmain(void)\n{\n\tft_putchar('4');\n\tft_putchar('2');\n\tft_putchar('\\n');\n\treturn (0);\n}\n",
             expected: "42\n",
         }
@@ -199,12 +197,66 @@ mod tests {
             "ft_swap" => {
                 "void\tft_swap(int *a, int *b)\n{\n\tint\ttmp = *a;\n\n\t*a = *b;\n\t*b = tmp;\n}\n"
             }
-            "fix_it" => {
-                "#include <unistd.h>\nvoid\tft_putstr(char *str)\n{\n\tint\ti = 0;\n\n\twhile (str[i])\n\t{\n\t\twrite(1, &str[i], 1);\n\t\ti++;\n\t}\n}\n"
+            "ft_is_negative" => {
+                "#include <unistd.h>\nvoid\tft_is_negative(int n)\n{\n\tif (n < 0)\n\t\twrite(1, \"N\", 1);\n\telse\n\t\twrite(1, \"P\", 1);\n}\n"
             }
+            "ft_strdup" => {
+                "#include <stdlib.h>\nchar\t*ft_strdup(char *src)\n{\n\tchar\t*dup;\n\tint\t\ti;\n\n\ti = 0;\n\twhile (src[i])\n\t\ti++;\n\tdup = malloc(sizeof(char) * (i + 1));\n\tif (!dup)\n\t\treturn (0);\n\ti = 0;\n\twhile (src[i])\n\t{\n\t\tdup[i] = src[i];\n\t\ti++;\n\t}\n\tdup[i] = '\\0';\n\treturn (dup);\n}\n"
+            }
+            "ft_isdigit" => "int\tft_isdigit(int c)\n{\n\treturn (c >= '0' && c <= '9');\n}\n",
             "ft_strcmp" => {
                 "int\tft_strcmp(char *s1, char *s2)\n{\n\tint\ti = 0;\n\n\twhile (s1[i] && s1[i] == s2[i])\n\t\ti++;\n\treturn ((unsigned char)s1[i] - (unsigned char)s2[i]);\n}\n"
             }
+            "ft_putstr" => {
+                "#include <unistd.h>\nvoid\tft_putstr(char *str)\n{\n\tint\ti;\n\n\ti = 0;\n\twhile (str[i])\n\t{\n\t\twrite(1, &str[i], 1);\n\t\ti++;\n\t}\n}\n"
+            }
+            "ft_strcpy" => {
+                "char\t*ft_strcpy(char *dest, char *src)\n{\n\tint\ti;\n\n\ti = 0;\n\twhile (src[i])\n\t{\n\t\tdest[i] = src[i];\n\t\ti++;\n\t}\n\tdest[i] = '\\0';\n\treturn (dest);\n}\n"
+            }
+            "ft_isalpha" => {
+                "int\tft_isalpha(int c)\n{\n\treturn ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));\n}\n"
+            }
+            "ft_putnbr" => {
+                "#include <unistd.h>\nstatic void\tput(long n)\n{\n\tchar\tc;\n\n\tif (n >= 10)\n\t\tput(n / 10);\n\tc = '0' + (char)(n % 10);\n\twrite(1, &c, 1);\n}\n\nvoid\tft_putnbr(int nb)\n{\n\tlong\tn;\n\n\tn = nb;\n\tif (n < 0)\n\t{\n\t\twrite(1, \"-\", 1);\n\t\tn = -n;\n\t}\n\tput(n);\n}\n"
+            }
+            "ft_bzero" => {
+                "void\tft_bzero(void *s, unsigned int n)\n{\n\tunsigned char\t*p;\n\tunsigned int\ti;\n\n\tp = s;\n\ti = 0;\n\twhile (i < n)\n\t{\n\t\tp[i] = 0;\n\t\ti++;\n\t}\n}\n"
+            }
+            "ft_toupper" => {
+                "int\tft_toupper(int c)\n{\n\tif (c >= 'a' && c <= 'z')\n\t\treturn (c - 32);\n\treturn (c);\n}\n"
+            }
+            "ft_strcat" => {
+                "char\t*ft_strcat(char *dest, char *src)\n{\n\tint\ti;\n\tint\tj;\n\n\ti = 0;\n\twhile (dest[i])\n\t\ti++;\n\tj = 0;\n\twhile (src[j])\n\t{\n\t\tdest[i] = src[j];\n\t\ti++;\n\t\tj++;\n\t}\n\tdest[i] = '\\0';\n\treturn (dest);\n}\n"
+            }
+            "ft_strchr" => {
+                "char\t*ft_strchr(char *str, int c)\n{\n\tint\ti;\n\n\ti = 0;\n\twhile (str[i] && str[i] != (char)c)\n\t\ti++;\n\tif (str[i] == (char)c)\n\t\treturn (str + i);\n\treturn (0);\n}\n"
+            }
+            "ft_atoi" => {
+                "int\tft_atoi(char *str)\n{\n\tint\ti;\n\tint\tsign;\n\tint\tn;\n\n\ti = 0;\n\tsign = 1;\n\tn = 0;\n\twhile (str[i] == ' ' || (str[i] >= '\\t' && str[i] <= '\\r'))\n\t\ti++;\n\tif (str[i] == '-' || str[i] == '+')\n\t{\n\t\tif (str[i] == '-')\n\t\t\tsign = -1;\n\t\ti++;\n\t}\n\twhile (str[i] >= '0' && str[i] <= '9')\n\t{\n\t\tn = n * 10 + (str[i] - '0');\n\t\ti++;\n\t}\n\treturn (n * sign);\n}\n"
+            }
+            "ft_isascii" => "int\tft_isascii(int c)\n{\n\treturn (c >= 0 && c <= 127);\n}\n",
+            "ft_strncpy" => {
+                "char\t*ft_strncpy(char *dest, char *src, unsigned int n)\n{\n\tunsigned int\ti;\n\n\ti = 0;\n\twhile (i < n && src[i])\n\t{\n\t\tdest[i] = src[i];\n\t\ti++;\n\t}\n\twhile (i < n)\n\t{\n\t\tdest[i] = '\\0';\n\t\ti++;\n\t}\n\treturn (dest);\n}\n"
+            }
+            "ft_tolower" => {
+                "int\tft_tolower(int c)\n{\n\tif (c >= 'A' && c <= 'Z')\n\t\treturn (c + 32);\n\treturn (c);\n}\n"
+            }
+            "ft_memset" => {
+                "void\t*ft_memset(void *s, int c, unsigned int n)\n{\n\tunsigned char\t*p;\n\tunsigned int\ti;\n\n\tp = s;\n\ti = 0;\n\twhile (i < n)\n\t{\n\t\tp[i] = (unsigned char)c;\n\t\ti++;\n\t}\n\treturn (s);\n}\n"
+            }
+            "ft_strncmp" => {
+                "int\tft_strncmp(char *s1, char *s2, unsigned int n)\n{\n\tunsigned int\ti;\n\n\ti = 0;\n\twhile (i < n && s1[i] && s1[i] == s2[i])\n\t\ti++;\n\tif (i == n)\n\t\treturn (0);\n\treturn ((unsigned char)s1[i] - (unsigned char)s2[i]);\n}\n"
+            }
+            "ft_strrchr" => {
+                "char\t*ft_strrchr(char *str, int c)\n{\n\tint\ti;\n\tint\tlast;\n\n\ti = 0;\n\tlast = -1;\n\twhile (str[i])\n\t{\n\t\tif (str[i] == (char)c)\n\t\t\tlast = i;\n\t\ti++;\n\t}\n\tif (c == 0)\n\t\treturn (str + i);\n\tif (last >= 0)\n\t\treturn (str + last);\n\treturn (0);\n}\n"
+            }
+            "ft_isalnum" => {
+                "int\tft_isalnum(int c)\n{\n\treturn ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')\n\t\t|| (c >= '0' && c <= '9'));\n}\n"
+            }
+            "ft_strncat" => {
+                "char\t*ft_strncat(char *dest, char *src, unsigned int n)\n{\n\tunsigned int\ti;\n\tunsigned int\tj;\n\n\ti = 0;\n\twhile (dest[i])\n\t\ti++;\n\tj = 0;\n\twhile (j < n && src[j])\n\t{\n\t\tdest[i + j] = src[j];\n\t\tj++;\n\t}\n\tdest[i + j] = '\\0';\n\treturn (dest);\n}\n"
+            }
+            "ft_isprint" => "int\tft_isprint(int c)\n{\n\treturn (c >= 32 && c <= 126);\n}\n",
             other => panic!("no reference solution for {other}"),
         }
     }

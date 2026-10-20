@@ -8,6 +8,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::App;
 use crate::exercises::EXERCISES;
+use crate::grade::MAX_SCORE;
 
 pub const SPINNER: [&str; 4] = ["|", "/", "-", "\\"];
 
@@ -18,7 +19,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         .split(f.area());
     let panes = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(26), Constraint::Min(20)])
+        .constraints([Constraint::Length(list_width()), Constraint::Min(20)])
         .split(chunks[0]);
 
     draw_list(f, app, panes[0]);
@@ -39,7 +40,7 @@ fn draw_list(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
                 _ => Color::Red,
             };
             ListItem::new(Line::from(vec![
-                Span::raw(format!(" {:<12} ", ex.id)),
+                Span::raw(format!(" {:<width$} ", ex.id, width = widest_id())),
                 Span::styled(format!("[{score}/2]"), Style::default().fg(color)),
             ]))
         })
@@ -59,7 +60,7 @@ fn draw_subject(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let ex = &EXERCISES[app.selected];
     let mut lines = vec![
         Line::from(Span::styled(
-            ex.title,
+            format!("Exercise {} - {}", app.selected + 1, ex.id),
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
@@ -74,7 +75,7 @@ fn draw_subject(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             Style::default().fg(Color::Cyan),
         )),
         Line::from(Span::styled(
-            format!("  Edit:  rendu/{}.c  (use any editor you like)", ex.id),
+            format!("  Create: rendu/{}.c  (use any editor you like)", ex.id),
             Style::default().fg(Color::Cyan),
         )),
         Line::from(""),
@@ -132,12 +133,13 @@ fn draw_subject(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
 
 fn draw_status(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let total: u32 = app.scores.iter().map(|&s| u32::from(s)).sum();
+    let max = EXERCISES.len() as u32 * u32::from(MAX_SCORE);
     let keys = if app.checking {
         " Checking... please wait "
     } else {
         " up/down j/k select  G grade  Q quit "
     };
-    let score = format!(" Score: {total}/10 ");
+    let score = format!(" Score: {total}/{max} ");
     let mut spans = vec![
         Span::styled(keys, Style::default().fg(Color::Black).bg(Color::White)),
         Span::raw(" "),
@@ -151,13 +153,22 @@ fn draw_status(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     }
     spans.push(Span::styled(
         score,
-        Style::default().fg(Color::Black).bg(if total == 10 {
+        Style::default().fg(Color::Black).bg(if total == max {
             Color::Green
         } else {
             Color::Yellow
         }),
     ));
     f.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+fn widest_id() -> usize {
+    EXERCISES.iter().map(|ex| ex.id.len()).max().unwrap_or(0)
+}
+
+// borders + "> " + id + " " + "[2/2]" + slack
+fn list_width() -> u16 {
+    (widest_id() + 12) as u16
 }
 
 fn seconds(rem: Duration) -> u64 {
@@ -226,6 +237,12 @@ fn escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn list_fits_every_id() {
+        assert_eq!(widest_id(), "ft_is_negative".len());
+        assert_eq!(list_width(), 26);
+    }
 
     #[test]
     fn centered_rect_centers_and_clamps() {
