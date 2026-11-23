@@ -17,6 +17,10 @@ const CHECK_DELAY: Duration = Duration::from_secs(2);
 const FRAME: Duration = Duration::from_millis(80);
 const POPUP_DURATION: Duration = Duration::from_secs(3);
 
+fn rendu_dir_in(home: &Path) -> PathBuf {
+    home.join(RENDU_DIR)
+}
+
 pub struct Popup {
     pub ok: bool,
     pub until: Instant,
@@ -43,7 +47,9 @@ impl App {
 }
 
 fn main() -> io::Result<()> {
-    let rendu = PathBuf::from(RENDU_DIR);
+    let home = std::env::var_os("HOME")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "HOME is not set"))?;
+    let rendu = rendu_dir_in(&PathBuf::from(home));
     let build = rendu.join(".build");
     std::fs::create_dir_all(&build)?;
 
@@ -158,6 +164,14 @@ fn grade_with_suspense(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rendu_is_created_in_home() {
+        assert_eq!(
+            rendu_dir_in(Path::new("/home/student")),
+            Path::new("/home/student/rendu")
+        );
+    }
 
     #[test]
     fn selection_wraps_both_ways() {

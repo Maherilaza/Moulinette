@@ -74,7 +74,7 @@ fn draw_subject(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
             Style::default().fg(Color::Cyan),
         )),
         Line::from(Span::styled(
-            format!("  Create: rendu/{}.c  (use any editor you like)", ex.id),
+            format!("  Create: ~/rendu/{}.c  (use any editor you like)", ex.id),
             Style::default().fg(Color::Cyan),
         )),
         Line::from(""),
